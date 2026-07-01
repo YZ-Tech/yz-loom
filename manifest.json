@@ -1,0 +1,23 @@
+{
+  "id": "loom",
+  "name": "Loom Console",
+  "version": "0.0.1",
+  "enabled": true,
+  "nav": null,
+  "dashboards": [
+    {
+      "id": "loom-console",
+      "label": "Loom Console",
+      "component": "ClaudeConsole",
+      "variant": 8,
+      "apiBase": ""
+    }
+  ],
+  "exports": [
+    { "id": "ClaudeConsole", "type": "component" }
+  ],
+  "requires": {
+    "network": "none",
+    "sensors": []
+  }
+}

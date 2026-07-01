@@ -1,0 +1,73 @@
+name: Builder
+
+# Per-satellite releaser for a UI-ONLY satellite: builds the JarvYZ
+# dynamic-module IIFE + attaches it alongside its manifest. No Python wheel and
+# no standalone SPA — this satellite has no backend process (it contributes
+# dashboard variants that run inside JarvYZ, reading core's WS + APIs directly).
+#
+# Lives in the satellite's OWN .github/ so it travels with the git-subtree split
+# into the standalone repo. INERT in the JarvYZ monorepo (Actions reads only the
+# repo-ROOT .github/); it activates once this folder is the split repo's root.
+#
+# Trigger: a push whose commit message starts with "Release " (subtree pushes
+# carry the monorepo commit message), or manual dispatch. Version flows from
+# manifest.json (the single source of truth for a UI-only satellite). The IIFE
+# name is globbed, so this exact file is shared verbatim across UI-only satellites.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build + Release (IIFE + manifest)
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'Release ')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Read version from manifest.json
+        id: ver
+        run: echo "VERSION=$(node -e "console.log(require('./manifest.json').version)")" >> "$GITHUB_OUTPUT"
+      - name: npm ci
+        working-directory: ui
+        run: npm ci
+      - name: Build dynamic module (IIFE)
+        working-directory: ui
+        run: npm run build:lib     # -> ui/dist-lib/<name>.iife.js
+      - name: Stage release assets
+        id: stage
+        run: |
+          V="${{ steps.ver.outputs.VERSION }}"
+          IIFE="$(ls ui/dist-lib/*.iife.js | head -1)"
+          BASE="$(basename "$IIFE" .iife.js)"
+          mkdir -p out
+          cp "$IIFE"        "out/${BASE}_${V}.iife.js"
+          cp manifest.json  "out/${BASE}_${V}.manifest.json"
+          ls -l out/
+      - name: Generate changelog
+        run: |
+          V="${{ steps.ver.outputs.VERSION }}"
+          echo "## yz-loom v${V}" > changelog.md
+          echo "" >> changelog.md
+          PREV=$(git describe --tags --abbrev=0 "HEAD^" 2>/dev/null || true)
+          if [ -n "$PREV" ]; then
+            git log --pretty=format:"- %s (%h)" "${PREV}..HEAD" >> changelog.md
+          else
+            git log --pretty=format:"- %s (%h)" -n 20 >> changelog.md
+          fi
+      - name: Create / update Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.VERSION }}
+          name: v${{ steps.ver.outputs.VERSION }}
+          body_path: changelog.md
+          files: out/*
