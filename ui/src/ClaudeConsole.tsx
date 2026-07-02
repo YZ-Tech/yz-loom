@@ -1,6 +1,7 @@
-import { Box, Paper } from '@mui/material'
+import { Box, InputBase, Paper } from '@mui/material'
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { useSubscription } from './lib/ws'
+import { BecomeLoomButton } from './BecomeLoomButton'
 
 type LogKind = 'prompt' | 'reply' | 'transcript_user' | 'transcript_asst' | 'tool' | 'extool' | 'mode' | 'system' | 'announce'
 
@@ -308,42 +309,44 @@ function TimerStrip() {
   )
 }
 
-type Mode = 'ollama-web' | 'ollama-claude' | 'claude'
+// The active engine, read from the live /api/llm/source (reflex | ollama |
+// external). Read-only status here — the actual toggle lives on the Brain page
+// + privacy shield. `external` = Loom Mode.
+type Engine = 'reflex' | 'ollama' | 'external'
 
-const MODE_ORDER: Mode[] = ['ollama-web', 'ollama-claude', 'claude']
-const MODE_LABEL: Record<Mode, string> = {
-  'ollama-web': '○ ollama · web',
-  'ollama-claude': '◐ ollama · claude',
-  'claude': '● claude mode',
+const ENGINE_LABEL: Record<Engine, string> = {
+  reflex: '◦ reflex',
+  ollama: '○ ollama',
+  external: '● loom mode',
 }
-const MODE_COLOR: Record<Mode, string> = {
-  'ollama-web': '#4b5563',
-  'ollama-claude': '#f472b6',
-  'claude': '#00d9ff',
+const ENGINE_COLOR: Record<Engine, string> = {
+  reflex: '#4b5563',
+  ollama: '#4b5563',
+  external: '#00d9ff',
 }
 
 export function ClaudeConsoleView() {
   const [log, dispatch] = useReducer(reduce, [])
   const scrollRef = useRef<HTMLDivElement>(null)
-  const [mode, setMode] = useState<Mode | null>(null)
+  const [source, setSource] = useState<Engine | null>(null)
   const [pendingIds, setPendingIds] = useState<string[]>([])
-  const [pendingTools, setPendingTools] = useState<string[]>([])
   const [model, setModel] = useState<string>('')
+  const [lang, setLang] = useState<'en' | 'de'>('en')
+  const [draft, setDraft] = useState('')
+  const [busy, setBusy] = useState(false)
   const pendingRef = useRef<Set<string>>(new Set())
-  const pendingToolRef = useRef<Set<string>>(new Set())
   const asstBuf = useRef<string>('')
 
   useEffect(() => {
     let canceled = false
     const tick = async () => {
       try {
-        const [m, p, pt] = await Promise.all([
-          fetch('/api/llm/mode').then((r) => r.json()),
+        const [s, p] = await Promise.all([
+          fetch('/api/llm/source').then((r) => r.json()),
           fetch('/api/llm/external/pending').then((r) => r.json()),
-          fetch('/api/llm/external/pending_tools').then((r) => r.json()),
         ])
         if (canceled) return
-        setMode(m.mode)
+        setSource(s.source)
         const ids: string[] = p.ids || []
         setPendingIds(ids)
         const seen = pendingRef.current
@@ -360,22 +363,6 @@ export function ClaudeConsoleView() {
           }
         }
         pendingRef.current = next
-        const toolIds: string[] = pt.ids || []
-        setPendingTools(toolIds)
-        const seenT = pendingToolRef.current
-        const nextT = new Set(toolIds)
-        for (const id of seenT) {
-          if (!nextT.has(id)) {
-            dispatch({
-              id: nid(),
-              ts: Date.now(),
-              kind: 'extool',
-              text: 'resolved',
-              pid: id,
-            })
-          }
-        }
-        pendingToolRef.current = nextT
       } catch {
         /* offline — silent */
       }
@@ -394,6 +381,7 @@ export function ClaudeConsoleView() {
       .then((s) => {
         const m = s?.llm?.ollama_model
         if (typeof m === 'string') setModel(m)
+        setLang(s?.stt?.whisper_language === 'de' ? 'de' : 'en')
       })
       .catch(() => {})
   }, [])
@@ -437,26 +425,6 @@ export function ClaudeConsoleView() {
   useSubscription<{ id: string; text: string }>('external_prompt', (d) => {
     dispatch({ id: nid(), ts: Date.now(), kind: 'prompt', text: d.text, pid: d.id })
   })
-
-  useSubscription<{ id: string; name: string; args: Record<string, unknown> }>(
-    'external_tool_call',
-    (d) => {
-      let argsStr: string
-      try {
-        argsStr = JSON.stringify(d.args)
-      } catch {
-        argsStr = '?'
-      }
-      if (argsStr.length > 80) argsStr = `${argsStr.slice(0, 80)}…`
-      dispatch({
-        id: nid(),
-        ts: Date.now(),
-        kind: 'extool',
-        text: `${d.name}(${argsStr})`,
-        pid: d.id,
-      })
-    },
-  )
 
   useSubscription<{ name: string; args: Record<string, unknown>; result: string; ms: number }>(
     'tool',
@@ -506,29 +474,34 @@ export function ClaudeConsoleView() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [lastLen])
 
-  const cycle = async () => {
-    if (!mode) return
-    const i = MODE_ORDER.indexOf(mode)
-    const next = MODE_ORDER[(i + 1) % MODE_ORDER.length]
+  const engineLabel = source ? ENGINE_LABEL[source] : '… loading'
+  const engineColor = source ? ENGINE_COLOR[source] : '#4b5563'
+  const sourceLabel =
+    source === 'external' ? 'loom' :
+    source === 'ollama' ? model || 'ollama' :
+    source === 'reflex' ? 'reflex' :
+    '…'
+
+  // Typed turn — the text counterpart to the mic. POSTs /api/prompt; the user +
+  // assistant text stream back into the log via the `transcript` subscription
+  // (same as a voice turn), so nothing to render here beyond clearing the draft.
+  const send = async () => {
+    const t = draft.trim()
+    if (!t || busy) return
+    setBusy(true)
     try {
-      await fetch('/api/llm/mode', {
-        method: 'PUT',
+      await fetch('/api/prompt', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: next }),
+        body: JSON.stringify({ text: t, lang }),
       })
-      setMode(next)
+      setDraft('')
     } catch {
-      /* show nothing — next poll will reconcile */
+      /* offline — leave the draft so the user can retry */
+    } finally {
+      setBusy(false)
     }
   }
-
-  const modeLabel = mode ? MODE_LABEL[mode] : '… loading'
-  const modeColor = mode ? MODE_COLOR[mode] : '#4b5563'
-  const sourceLabel =
-    mode === 'claude' ? 'claude' :
-    mode === 'ollama-claude' ? `${model || 'ollama'} + claude·web` :
-    mode === 'ollama-web' ? model || 'ollama' :
-    '…'
 
   return (
     <Paper
@@ -553,17 +526,14 @@ export function ClaudeConsoleView() {
         }}
       >
         <Box
-          onClick={cycle}
           sx={{
-            cursor: mode ? 'pointer' : 'default',
-            color: modeColor,
+            color: engineColor,
             userSelect: 'none',
             transition: 'color 120ms',
-            '&:hover': mode ? { filter: 'brightness(1.25)' } : undefined,
           }}
-          title={mode ? `click to cycle: ollama-web → ollama-claude → claude` : ''}
+          title="Active engine (change it on the Brain page)"
         >
-          {modeLabel}
+          {engineLabel}
         </Box>
         <Box sx={{ color: '#1f2937' }}>│</Box>
         <Box sx={{ color: '#6b7280' }}>
@@ -578,15 +548,8 @@ export function ClaudeConsoleView() {
         >
           pending: {pendingIds.length}
         </Box>
-        {pendingTools.length > 0 && (
-          <>
-            <Box sx={{ color: '#1f2937' }}>│</Box>
-            <Box sx={{ color: '#f472b6', transition: 'color 120ms' }}>
-              extool: {pendingTools.length}
-            </Box>
-          </>
-        )}
         <Box sx={{ flex: 1 }} />
+        <BecomeLoomButton />
         <Box sx={{ color: '#374151', fontSize: 11, letterSpacing: '0.08em' }}>v8 · console</Box>
       </Box>
 
@@ -628,6 +591,42 @@ export function ClaudeConsoleView() {
 
       <TimerStrip />
       <WLEDStrip />
+
+      <Box
+        sx={{
+          borderTop: '1px solid #1f2937',
+          px: 1.5,
+          py: 1,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          fontFamily: MONO,
+          fontSize: 13,
+        }}
+      >
+        <Box component="span" sx={{ color: '#00d9ff', flexShrink: 0, opacity: busy ? 0.4 : 1 }}>
+          &gt;
+        </Box>
+        <InputBase
+          value={draft}
+          disabled={busy}
+          placeholder="type a message to JarvYZ…"
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              void send()
+            }
+          }}
+          sx={{
+            flex: 1,
+            color: '#e5e7eb',
+            fontFamily: MONO,
+            fontSize: 13,
+            '& input::placeholder': { color: '#4b5563', opacity: 1 },
+          }}
+        />
+      </Box>
     </Paper>
   )
 }

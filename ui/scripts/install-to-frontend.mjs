@@ -25,6 +25,9 @@ const satelliteRoot = resolve(here, '..', '..')
 
 const iifeSrc = resolve(here, '..', 'dist-lib', 'yz-loom.iife.js')
 const manifestSrc = resolve(satelliteRoot, 'manifest.json')
+// The Loom onboarding prompt — served so the "Become Loom" UI can fetch + copy
+// its full text into the clipboard (works in any target session, any project).
+const becomeLoomSrc = resolve(satelliteRoot, 'companion', 'BECOME_LOOM.md')
 
 const iifeTargets = [
   resolve(projectRoot, 'frontend', 'public', 'modules', 'yz-loom.iife.js'),
@@ -33,6 +36,10 @@ const iifeTargets = [
 const manifestTargets = [
   resolve(projectRoot, 'frontend', 'public', 'modules', 'yz-loom.manifest.json'),
   resolve(projectRoot, 'backend', 'jarvyz', 'web', 'static', 'modules', 'yz-loom.manifest.json'),
+]
+const becomeLoomTargets = [
+  resolve(projectRoot, 'frontend', 'public', 'modules', 'yz-loom.become-loom.md'),
+  resolve(projectRoot, 'backend', 'jarvyz', 'web', 'static', 'modules', 'yz-loom.become-loom.md'),
 ]
 
 // -- Sanity: IIFE exists --------------------------------------------------
@@ -83,6 +90,16 @@ if (existsSync(manifestSrc)) {
   for (const dst of manifestTargets) {
     mkdirSync(dirname(dst), { recursive: true })
     copyFileSync(manifestSrc, dst)
+    console.log(`  -> ${dst}`)
+  }
+}
+
+// -- Copy BECOME_LOOM.md (the onboarding prompt) --------------------------
+if (existsSync(becomeLoomSrc)) {
+  console.log(`[ok] ${becomeLoomSrc}`)
+  for (const dst of becomeLoomTargets) {
+    mkdirSync(dirname(dst), { recursive: true })
+    copyFileSync(becomeLoomSrc, dst)
     console.log(`  -> ${dst}`)
   }
 }
