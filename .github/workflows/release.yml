@@ -37,6 +37,12 @@ jobs:
       - name: Read version from manifest.json
         id: ver
         run: echo "VERSION=$(node -e "console.log(require('./manifest.json').version)")" >> "$GITHUB_OUTPUT"
+      - name: Version gate - a repo's first release must be 0.0.1
+        run: |
+          if [ "$(git ls-remote --tags origin | wc -l)" -eq 0 ] && [ "${{ steps.ver.outputs.VERSION }}" != "0.0.1" ]; then
+            echo "::error::No tags exist on this repo yet - the FIRST release must be version 0.0.1 (got ${{ steps.ver.outputs.VERSION }}). Fix the version fields and re-release."
+            exit 1
+          fi
       - name: npm ci
         working-directory: ui
         run: npm ci
