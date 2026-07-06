@@ -110,9 +110,15 @@ def _poll_once(base: str, client: str, exclude: set[str]) -> dict | None:
 def cmd_next(base: str) -> int:
     """Block until one prompt is waiting, print it, exit 0."""
     warned = False
+    started = time.monotonic()
     while True:
         prompt = _poll_once(base, "loop", exclude=set())
         if prompt is not None:
+            # Time-grounding: a blocking command returning feels instant to
+            # the agent (the 30-min soak read as "a few seconds" to a live
+            # session, 2026-07-06). Tell it how long the channel was quiet
+            # so etiquette can match reality.
+            print(f"[waited {time.monotonic() - started:.0f}s]", flush=True)
             _print_prompt(prompt)
             return 0
         if not warned:
@@ -127,10 +133,14 @@ def cmd_listen(base: str) -> int:
     """Print prompts forever (Monitor-style). De-dupes ids for this process
     so an unanswered prompt isn't re-emitted every poll round."""
     emitted: set[str] = set()
+    last = time.monotonic()
     print(f"[loom-client] listening via {base}/api/loom/next", flush=True)
     while True:
         prompt = _poll_once(base, "listen", exclude=emitted)
         if prompt is not None:
+            now = time.monotonic()
+            print(f"[waited {now - last:.0f}s]", flush=True)  # see cmd_next
+            last = now
             _print_prompt(prompt)
             emitted.add(prompt.get("id") or "?")
         time.sleep(0.2)

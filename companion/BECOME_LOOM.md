@@ -116,6 +116,10 @@ A PROMPT arrives as those three lines together, sharing one `id`. Read them in
 that order: the overlay tells you *who you are*, the brief tells you *what's
 available and what just happened*, the PROMPT text is the actual ask.
 
+`loom_client.py` prints a `[waited <N>s]` line above each prompt — how long
+the channel was actually quiet. Trust it over your own sense of time: a
+blocking command returning feels instant to you even after half an hour.
+
 Path A's `loom_listener.py` additionally streams `[<lang>] <text>` (final user
 transcripts — context, no reply needed), `[mode] <a> -> <b>` (Loom Mode
 toggled) and `[ws-disconnect]` (JarvYZ restarting; it auto-reconnects). In
