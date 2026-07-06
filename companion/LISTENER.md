@@ -3,10 +3,25 @@
 `loom_listener.py` is the Claude-side half of Loom's dual channel — the Monitor
 script a Claude Code session runs to *hear* JarvYZ. It's a **client** of JarvYZ
 (subscribes to the `/ws` bus, probes a few REST endpoints) and prints greppable
-lines the operating Claude reads to know when it owns a turn. It is **not** a
-served satellite artifact: not in the manifest, not bundled into the IIFE, not
-shipped by the release workflow. It rides in this kit because it's Loom
-integration.
+lines the operating Claude reads to know when it owns a turn.
+
+Since 2026-07-06 both companion scripts are **served by the running JarvYZ**
+(install-to-frontend copies them to `/modules/yz-loom.listener.py` and
+`/modules/yz-loom.client.py`), so a brain on any machine can fetch them with
+curl — no human file-copying. BECOME_LOOM.md (the pasteable onboarding prompt)
+tells the agent how.
+
+**Sibling: `loom_client.py`** — the universal, stdlib-only client for harnesses
+WITHOUT a Monitor-equivalent (Copilot & co.). Instead of a woken stream it
+offers blocking verbs: `next` (long-poll `/api/loom/next` until a prompt
+waits), `reply <id>` (posts the answer, no JSON quoting fights), `listen`
+(Monitor-style stream without the `websockets` dependency), `status`. The
+"persistent wait-loop" protocol built on it (run `next` in the agent's own
+terminal, answer, repeat — one chat session carries the whole conversation)
+is documented in BECOME_LOOM.md Path B and was verified live with a Copilot
+session on 2026-07-06. Both clients heartbeat `/api/loom/heartbeat` (listener)
+or implicitly via the long-poll (client), which feeds the Loom Console's
+brain-status chip.
 
 For the **server side** of the protocol it consumes — `/api/llm/external/reply`,
 `/pending`, the `external_prompt` event shape, `prompt_brief`, the mode model —

@@ -1,9 +1,11 @@
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
 import CheckIcon from '@mui/icons-material/Check'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
+import DownloadIcon from '@mui/icons-material/Download'
 import {
   Box,
   Button,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -12,21 +14,89 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 // The onboarding prompt is served next to this IIFE (copied there by the
 // satellite's install-to-frontend). Fetched + copied whole so it works pasted
 // into ANY session, even a different project.
 const ONBOARDING_URL = '/modules/yz-loom.become-loom.md'
+// The bridge scripts, served the same way — a brain can curl them from the
+// running JarvYZ (BECOME_LOOM.md says how); these links are the human path.
+const CLIENT_URL = '/modules/yz-loom.client.py'
+const LISTENER_URL = '/modules/yz-loom.listener.py'
 
 const FALLBACK_PROMPT =
   'Become Loom — the voice of my JarvYZ assistant. Open and follow this file, ' +
   'then do what it says:\n\n  satellites/yz-loom/companion/BECOME_LOOM.md\n\n' +
   "(If you're in a different project and can't see that file, ask me to paste its contents.)"
 
+interface BrainStatus {
+  mode: string
+  pending: number
+  brain: { seen_secs_ago: number; client: string } | null
+}
+
+/** Snapshot of /api/loom/status, fetched when the dialog opens (no polling —
+ *  reopen or hit the refresh text to re-read). Older cores without the
+ *  endpoint render nothing. */
+function BrainStatusRow() {
+  const [status, setStatus] = useState<BrainStatus | null>(null)
+  const [nonce, setNonce] = useState(0)
+
+  useEffect(() => {
+    let alive = true
+    void fetch('/api/loom/status')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => {
+        if (alive) setStatus(s)
+      })
+      .catch(() => {
+        if (alive) setStatus(null)
+      })
+    return () => {
+      alive = false
+    }
+  }, [nonce])
+
+  if (!status) return null
+  const seen = status.brain?.seen_secs_ago
+  // The listener heartbeats every ~30s; the loop client's long-poll is ~25s.
+  // Anything younger than ~90s is a live brain; older is a stale corpse.
+  const connected = seen != null && seen < 90
+  return (
+    <Box sx={{ mt: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Chip
+        size="small"
+        color={connected ? 'success' : 'default'}
+        variant={connected ? 'filled' : 'outlined'}
+        label={
+          connected
+            ? `brain connected (${status.brain?.client}, ${Math.round(seen ?? 0)}s ago)`
+            : 'no brain connected'
+        }
+      />
+      <Chip
+        size="small"
+        variant="outlined"
+        label={status.mode === 'external' ? 'Loom Mode ON' : 'Loom Mode off'}
+      />
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ cursor: 'pointer', textDecoration: 'underline' }}
+        onClick={() => setNonce((n) => n + 1)}
+      >
+        refresh
+      </Typography>
+    </Box>
+  )
+}
+
 /** Dense "Become Loom" — icon button + dialog that copies the onboarding
- *  prompt for a fresh AI coder. Satellite-local copy of the core
- *  BrainModeControls button (separate IIFE bundle), for the v8 console header. */
+ *  prompt for a fresh AI coder (any harness: Claude Code runs the listener
+ *  under Monitor; Copilot & co. run the persistent wait-loop — both paths
+ *  are in the prompt). Satellite-local copy of the core BrainModeControls
+ *  button (separate IIFE bundle), for the v8 console header. */
 export function BecomeLoomButton() {
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -64,7 +134,8 @@ export function BecomeLoomButton() {
         <DialogContent>
           <Typography variant="body2" color="text.secondary">
             Add a voice channel to your coding experience by connecting JarvYZ to
-            your AI coder. Just paste this prompt into a new session:
+            your AI coder — Claude Code, Copilot, or any agent with a terminal.
+            Just paste this prompt into a session:
           </Typography>
           <Box
             sx={{
@@ -88,6 +159,20 @@ export function BecomeLoomButton() {
                 {copied ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
               </IconButton>
             </Tooltip>
+          </Box>
+          <BrainStatusRow />
+          <Box sx={{ mt: 1.5, display: 'flex', gap: 1.5, alignItems: 'center' }}>
+            <DownloadIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+            <Typography variant="caption" color="text.secondary">
+              bridge scripts (the prompt fetches these itself):{' '}
+              <a href={CLIENT_URL} download="loom_client.py">
+                loom_client.py
+              </a>
+              {' · '}
+              <a href={LISTENER_URL} download="loom_listener.py">
+                loom_listener.py
+              </a>
+            </Typography>
           </Box>
         </DialogContent>
         <DialogActions>

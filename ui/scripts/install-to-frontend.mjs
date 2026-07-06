@@ -28,6 +28,13 @@ const manifestSrc = resolve(satelliteRoot, 'manifest.json')
 // The Loom onboarding prompt — served so the "Become Loom" UI can fetch + copy
 // its full text into the clipboard (works in any target session, any project).
 const becomeLoomSrc = resolve(satelliteRoot, 'companion', 'BECOME_LOOM.md')
+// The bridge scripts — served so a brain on ANY machine/workspace can fetch
+// them from the running JarvYZ (curl per BECOME_LOOM.md) instead of a human
+// hand-copying files. client = stdlib-only universal; listener = WS stream.
+const companionScripts = [
+  ['loom_client.py', 'yz-loom.client.py'],
+  ['loom_listener.py', 'yz-loom.listener.py'],
+]
 
 const iifeTargets = [
   resolve(projectRoot, 'frontend', 'public', 'modules', 'yz-loom.iife.js'),
@@ -100,6 +107,25 @@ if (existsSync(becomeLoomSrc)) {
   for (const dst of becomeLoomTargets) {
     mkdirSync(dirname(dst), { recursive: true })
     copyFileSync(becomeLoomSrc, dst)
+    console.log(`  -> ${dst}`)
+  }
+}
+
+// -- Copy the bridge scripts (fetched by brains via /modules/) -------------
+for (const [srcName, dstName] of companionScripts) {
+  const src = resolve(satelliteRoot, 'companion', srcName)
+  if (!existsSync(src)) {
+    console.error(`[error] ${src} not found — the served bridge scripts are part of the contract.`)
+    process.exit(1)
+  }
+  console.log(`[ok] ${src}`)
+  for (const base of [
+    resolve(projectRoot, 'frontend', 'public', 'modules'),
+    resolve(projectRoot, 'backend', 'jarvyz', 'web', 'static', 'modules'),
+  ]) {
+    const dst = resolve(base, dstName)
+    mkdirSync(dirname(dst), { recursive: true })
+    copyFileSync(src, dst)
     console.log(`  -> ${dst}`)
   }
 }

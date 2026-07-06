@@ -51,6 +51,7 @@ import websockets
 URL = "ws://127.0.0.1:8765/ws"
 PENDING_URL = "http://127.0.0.1:8765/api/llm/external/pending"
 SETTINGS_URL = "http://127.0.0.1:8765/api/settings"
+HEARTBEAT_URL = "http://127.0.0.1:8765/api/loom/heartbeat"
 
 RECONNECT_DELAY = 2.0     # backoff between connection attempts (every path)
 REPROBE_SECS = 30.0       # idle re-probe interval — self-heals a mis-moded listener
@@ -82,6 +83,25 @@ async def _get_json(url: str) -> Any:
         with urlopen(url, timeout=2) as r:
             return json.loads(r.read())
     return await asyncio.to_thread(_get)
+
+
+async def _post_heartbeat() -> None:
+    """Sign of life for the Loom Console's brain-status surface. Guarded and
+    best-effort: an older core without /api/loom/heartbeat (or a mid-restart
+    JarvYZ) must never disturb the listener."""
+    def _post() -> None:
+        from urllib.request import Request
+        req = Request(
+            HEARTBEAT_URL,
+            data=b'{"client": "listener"}',
+            headers={"Content-Type": "application/json"},
+        )
+        with urlopen(req, timeout=2):
+            pass
+    try:
+        await asyncio.to_thread(_post)
+    except Exception:
+        pass
 
 
 async def _refresh_mode() -> bool:
@@ -195,6 +215,7 @@ async def main() -> None:
                     await asyncio.sleep(1)
                 print(f"[ws-connected] mode={_mode}", flush=True)
                 was_connected = True
+                await _post_heartbeat()
                 # Recover anything that fired before we attached.
                 await _emit_pending()
                 while True:
@@ -203,7 +224,10 @@ async def main() -> None:
                     except asyncio.TimeoutError:
                         # Idle — re-probe so a mis-moded listener self-heals even
                         # without a settings_change (e.g. after a connect-time
-                        # probe failure left us on the local default).
+                        # probe failure left us on the local default). The
+                        # heartbeat rides the same cadence for the Console's
+                        # brain-status surface.
+                        await _post_heartbeat()
                         prev = _mode
                         if await _refresh_mode():
                             await _apply_mode_change(prev)
