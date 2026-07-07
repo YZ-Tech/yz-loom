@@ -2,8 +2,7 @@ import { Box, InputBase, Paper } from '@mui/material'
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { useSubscription } from './lib/ws'
 import { BecomeLoomButton } from './BecomeLoomButton'
-
-type LogKind = 'prompt' | 'reply' | 'transcript_user' | 'transcript_asst' | 'tool' | 'extool' | 'mode' | 'system' | 'announce'
+import { useConsolePalette, type Engine, type LogKind } from './consolePalette'
 
 interface LogEntry {
   id: number
@@ -19,18 +18,6 @@ const nid = () => _next++
 
 function reduce(state: LogEntry[], a: LogEntry): LogEntry[] {
   return [...state, a].slice(-MAX_LOG)
-}
-
-const COLORS: Record<LogKind, string> = {
-  prompt:          '#00d9ff',
-  reply:           '#7ee8ff',
-  transcript_user: '#9aa3b2',
-  transcript_asst: '#fde68a',
-  tool:            '#e8c07d',
-  extool:          '#f472b6',
-  mode:            '#4b5563',
-  system:          '#6ee7b7',
-  announce:        '#a78bfa',
 }
 
 const TAGS: Record<LogKind, string> = {
@@ -100,6 +87,7 @@ function Bar({
 }
 
 function TimerRow({ timer }: { timer: ActiveTimer }) {
+  const p = useConsolePalette()
   const barRef = useRef<HTMLSpanElement | null>(null)
   const countRef = useRef<HTMLSpanElement | null>(null)
   const rowRef = useRef<HTMLDivElement | null>(null)
@@ -110,9 +98,9 @@ function TimerRow({ timer }: { timer: ActiveTimer }) {
       const total = timer.seconds || 1
       const elapsed = Math.max(0, Math.min(total, total - remaining))
       const pct = Math.max(0, Math.min(100, (elapsed / total) * 100))
-      const active = remaining <= 5 ? '#fb7185' : remaining <= 15 ? '#fbbf24' : '#7ee8ff'
+      const active = remaining <= 5 ? p.rose : remaining <= 15 ? p.amber : p.accentSoft
       if (barRef.current) {
-        barRef.current.style.background = `linear-gradient(to right, ${active} 0%, ${active} ${pct}%, #1f2937 ${pct}%, #1f2937 100%)`
+        barRef.current.style.background = `linear-gradient(to right, ${active} 0%, ${active} ${pct}%, ${p.dim} ${pct}%, ${p.dim} 100%)`
       }
       if (countRef.current) countRef.current.textContent = `${fmtMS(remaining)} / ${fmtMS(total)}`
       if (rowRef.current) rowRef.current.style.color = active
@@ -120,15 +108,15 @@ function TimerRow({ timer }: { timer: ActiveTimer }) {
     update()
     const id = setInterval(update, 1000)
     return () => clearInterval(id)
-  }, [timer.fires_at, timer.seconds])
+  }, [timer.fires_at, timer.seconds, p])
 
   const id = `#${timer.id}`.padEnd(4)
   const label = (timer.label || '').padEnd(10).slice(0, 10)
 
   return (
-    <Box ref={rowRef} sx={{ display: 'flex', gap: 1.5, color: '#7ee8ff', alignItems: 'center' }}>
-      <Box sx={{ color: '#4b5563', flexShrink: 0 }}>{id}</Box>
-      <Box sx={{ color: '#9ca3af', flexShrink: 0 }}>{label}</Box>
+    <Box ref={rowRef} sx={{ display: 'flex', gap: 1.5, color: p.accentSoft, alignItems: 'center' }}>
+      <Box sx={{ color: p.muted, flexShrink: 0 }}>{id}</Box>
+      <Box sx={{ color: p.text, flexShrink: 0 }}>{label}</Box>
       <Box
         component="span"
         ref={barRef}
@@ -139,7 +127,7 @@ function TimerRow({ timer }: { timer: ActiveTimer }) {
           flexShrink: 0,
         }}
       />
-      <Box component="span" ref={countRef} sx={{ flexShrink: 0, color: '#9ca3af' }} />
+      <Box component="span" ref={countRef} sx={{ flexShrink: 0, color: p.text }} />
     </Box>
   )
 }
@@ -160,6 +148,7 @@ function toHex(c: [number, number, number]): string {
 }
 
 function WLEDRow({ device }: { device: WLEDDevice }) {
+  const p = useConsolePalette()
   const { alias, state, reachable, enabled } = device
 
   if (!enabled) return null
@@ -169,9 +158,9 @@ function WLEDRow({ device }: { device: WLEDDevice }) {
   if (!reachable || !state) {
     return (
       <Box sx={{ display: 'flex', gap: 1.5 }}>
-        <Box sx={{ color: '#fb7185', flexShrink: 0, width: '1ch' }}>?</Box>
-        <Box sx={{ color: '#9ca3af', flexShrink: 0 }}>{alias10}</Box>
-        <Box sx={{ color: '#4b5563' }}>— offline</Box>
+        <Box sx={{ color: p.rose, flexShrink: 0, width: '1ch' }}>?</Box>
+        <Box sx={{ color: p.text, flexShrink: 0 }}>{alias10}</Box>
+        <Box sx={{ color: p.muted }}>— offline</Box>
       </Box>
     )
   }
@@ -179,17 +168,17 @@ function WLEDRow({ device }: { device: WLEDDevice }) {
   const { on, bri, color } = state
   const pct = Math.round((bri / 255) * 100)
   const hex = toHex(color)
-  const dotColor = on ? '#00d9ff' : '#4b5563'
-  const swatchColor = on ? `rgb(${color[0]}, ${color[1]}, ${color[2]})` : '#4b5563'
+  const dotColor = on ? p.accent : p.muted
+  const swatchColor = on ? `rgb(${color[0]}, ${color[1]}, ${color[2]})` : p.muted
 
   return (
-    <Box sx={{ display: 'flex', gap: 1.5, color: on ? '#9ca3af' : '#4b5563', alignItems: 'center' }}>
+    <Box sx={{ display: 'flex', gap: 1.5, color: on ? p.text : p.muted, alignItems: 'center' }}>
       <Box sx={{ color: dotColor, flexShrink: 0, width: '1ch' }}>{on ? '●' : '○'}</Box>
-      <Box sx={{ color: '#9ca3af', flexShrink: 0 }}>{alias10}</Box>
+      <Box sx={{ color: p.text, flexShrink: 0 }}>{alias10}</Box>
       <Box sx={{ color: swatchColor, flexShrink: 0 }}>■</Box>
-      <Box sx={{ color: '#6b7280', flexShrink: 0 }}>{hex}</Box>
-      <Bar pct={pct} width={BRI_WIDTH} active={on ? '#7ee8ff' : '#374151'} inactive="#1f2937" />
-      <Box sx={{ color: '#9ca3af', flexShrink: 0 }}>{on ? `${pct}%` : 'off '}</Box>
+      <Box sx={{ color: p.mid, flexShrink: 0 }}>{hex}</Box>
+      <Bar pct={pct} width={BRI_WIDTH} active={on ? p.accentSoft : p.faint} inactive={p.dim} />
+      <Box sx={{ color: p.text, flexShrink: 0 }}>{on ? `${pct}%` : 'off '}</Box>
     </Box>
   )
 }
@@ -230,22 +219,23 @@ function WLEDStrip() {
     if (d.paths && d.paths.some((p) => p.startsWith('wled'))) fetchDevices()
   })
 
+  const p = useConsolePalette()
   const visible = devices.filter((d) => d.enabled)
   if (visible.length === 0) return null
 
   return (
     <Box
       sx={{
-        borderTop: '1px solid #1f2937',
+        borderTop: `1px solid ${p.border}`,
         px: 1.5,
         py: 1,
         fontFamily: MONO,
         fontSize: 13,
         lineHeight: 1.55,
-        bgcolor: '#080a0e',
+        bgcolor: p.strip,
       }}
     >
-      <Box sx={{ color: '#374151', fontSize: 11, letterSpacing: '0.08em', mb: 0.5 }}>
+      <Box sx={{ color: p.faint, fontSize: 11, letterSpacing: '0.08em', mb: 0.5 }}>
         // wled ({visible.length})
       </Box>
       {visible.map((d) => (
@@ -282,21 +272,22 @@ function TimerStrip() {
     }
   })
 
+  const p = useConsolePalette()
   if (timers.length === 0) return null
 
   return (
     <Box
       sx={{
-        borderTop: '1px solid #1f2937',
+        borderTop: `1px solid ${p.border}`,
         px: 1.5,
         py: 1,
         fontFamily: MONO,
         fontSize: 13,
         lineHeight: 1.55,
-        bgcolor: '#080a0e',
+        bgcolor: p.strip,
       }}
     >
-      <Box sx={{ color: '#374151', fontSize: 11, letterSpacing: '0.08em', mb: 0.5 }}>
+      <Box sx={{ color: p.faint, fontSize: 11, letterSpacing: '0.08em', mb: 0.5 }}>
         // timers ({timers.length})
       </Box>
       {timers
@@ -312,20 +303,14 @@ function TimerStrip() {
 // The active engine, read from the live /api/llm/source (reflex | ollama |
 // external). Read-only status here — the actual toggle lives on the Brain page
 // + privacy shield. `external` = Loom Mode.
-type Engine = 'reflex' | 'ollama' | 'external'
-
 const ENGINE_LABEL: Record<Engine, string> = {
   reflex: '◦ reflex',
   ollama: '○ ollama',
   external: '● loom mode',
 }
-const ENGINE_COLOR: Record<Engine, string> = {
-  reflex: '#4b5563',
-  ollama: '#4b5563',
-  external: '#00d9ff',
-}
 
 export function ClaudeConsoleView() {
+  const p = useConsolePalette()
   const [log, dispatch] = useReducer(reduce, [])
   const scrollRef = useRef<HTMLDivElement>(null)
   const [source, setSource] = useState<Engine | null>(null)
@@ -475,7 +460,7 @@ export function ClaudeConsoleView() {
   }, [lastLen])
 
   const engineLabel = source ? ENGINE_LABEL[source] : '… loading'
-  const engineColor = source ? ENGINE_COLOR[source] : '#4b5563'
+  const engineColor = source ? p.engine[source] : p.muted
   const sourceLabel =
     source === 'external' ? 'loom' :
     source === 'ollama' ? model || 'ollama' :
@@ -508,8 +493,8 @@ export function ClaudeConsoleView() {
       sx={{
         p: 0,
         overflow: 'hidden',
-        bgcolor: '#0a0d11',
-        border: '1px solid #1f2937',
+        bgcolor: p.bg,
+        border: `1px solid ${p.border}`,
         borderRadius: 1,
       }}
     >
@@ -520,7 +505,7 @@ export function ClaudeConsoleView() {
           gap: 2,
           px: 2,
           py: 1,
-          borderBottom: '1px solid #1f2937',
+          borderBottom: `1px solid ${p.border}`,
           fontFamily: MONO,
           fontSize: 13,
         }}
@@ -535,14 +520,14 @@ export function ClaudeConsoleView() {
         >
           {engineLabel}
         </Box>
-        <Box sx={{ color: '#1f2937' }}>│</Box>
-        <Box sx={{ color: '#6b7280' }}>
-          source: <Box component="span" sx={{ color: '#9ca3af' }}>{sourceLabel}</Box>
+        <Box sx={{ color: p.dim }}>│</Box>
+        <Box sx={{ color: p.mid }}>
+          source: <Box component="span" sx={{ color: p.text }}>{sourceLabel}</Box>
         </Box>
-        <Box sx={{ color: '#1f2937' }}>│</Box>
+        <Box sx={{ color: p.dim }}>│</Box>
         <Box
           sx={{
-            color: pendingIds.length > 0 ? '#00d9ff' : '#4b5563',
+            color: pendingIds.length > 0 ? p.accent : p.muted,
             transition: 'color 120ms',
           }}
         >
@@ -550,7 +535,7 @@ export function ClaudeConsoleView() {
         </Box>
         <Box sx={{ flex: 1 }} />
         <BecomeLoomButton />
-        <Box sx={{ color: '#374151', fontSize: 11, letterSpacing: '0.08em' }}>v8 · console</Box>
+        <Box sx={{ color: p.faint, fontSize: 11, letterSpacing: '0.08em' }}>v8 · console</Box>
       </Box>
 
       <Box
@@ -571,20 +556,20 @@ export function ClaudeConsoleView() {
         }}
       >
         {log.length === 0 && (
-          <Box sx={{ color: '#374151', textAlign: 'center', mt: 6, fontSize: 12 }}>
+          <Box sx={{ color: p.faint, textAlign: 'center', mt: 6, fontSize: 12 }}>
             // waiting for events…
           </Box>
         )}
         {log.map((e) => (
           <Box key={e.id} sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
-            <Box sx={{ color: '#1f2937', flexShrink: 0 }}>{fmtTime(e.ts)}</Box>
-            <Box sx={{ color: COLORS[e.kind], flexShrink: 0, opacity: 0.85 }}>{TAGS[e.kind]}</Box>
+            <Box sx={{ color: p.dim, flexShrink: 0 }}>{fmtTime(e.ts)}</Box>
+            <Box sx={{ color: p.kinds[e.kind], flexShrink: 0, opacity: 0.85 }}>{TAGS[e.kind]}</Box>
             {e.pid && (
-              <Box sx={{ color: '#4b5563', flexShrink: 0 }} title={e.pid}>
+              <Box sx={{ color: p.muted, flexShrink: 0 }} title={e.pid}>
                 {e.pid.slice(0, 8)}
               </Box>
             )}
-            <Box sx={{ color: COLORS[e.kind], flex: 1 }}>{e.text}</Box>
+            <Box sx={{ color: p.kinds[e.kind], flex: 1 }}>{e.text}</Box>
           </Box>
         ))}
       </Box>
@@ -594,7 +579,7 @@ export function ClaudeConsoleView() {
 
       <Box
         sx={{
-          borderTop: '1px solid #1f2937',
+          borderTop: `1px solid ${p.border}`,
           px: 1.5,
           py: 1,
           display: 'flex',
@@ -604,7 +589,7 @@ export function ClaudeConsoleView() {
           fontSize: 13,
         }}
       >
-        <Box component="span" sx={{ color: '#00d9ff', flexShrink: 0, opacity: busy ? 0.4 : 1 }}>
+        <Box component="span" sx={{ color: p.accent, flexShrink: 0, opacity: busy ? 0.4 : 1 }}>
           &gt;
         </Box>
         <InputBase
@@ -620,10 +605,10 @@ export function ClaudeConsoleView() {
           }}
           sx={{
             flex: 1,
-            color: '#e5e7eb',
+            color: p.input,
             fontFamily: MONO,
             fontSize: 13,
-            '& input::placeholder': { color: '#4b5563', opacity: 1 },
+            '& input::placeholder': { color: p.muted, opacity: 1 },
           }}
         />
       </Box>
