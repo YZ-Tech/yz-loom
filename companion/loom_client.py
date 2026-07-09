@@ -33,6 +33,8 @@ behavior for a wait verb.
 Output line formats (greppable, identical to loom_listener.py):
   [PROMPT id=<hex> persona=<name>] <text>   — the user is waiting for a reply
   [PERSONA_OVERLAY id=<hex>] <...>          — who you are this turn
+  [VOICE_CONTRACT id=<hex>] <...>           — output rules (spoken length,
+                                              language, digits-as-words)
   [BRIEF id=<hex>] <...>                    — live capabilities + world state
 """
 from __future__ import annotations
@@ -86,9 +88,12 @@ def _print_prompt(p: dict) -> None:
     tag = f" persona={p['persona']}" if p.get("persona") else ""
     print(f"[PROMPT id={pid}{tag}] {(p.get('text') or '').strip()}", flush=True)
     overlay = (p.get("persona_overlay") or "").strip()
+    contract = (p.get("voice_contract") or "").strip()
     brief = (p.get("brief") or "").strip()
     if overlay:
         print(f"[PERSONA_OVERLAY id={pid}] {overlay}", flush=True)
+    if contract:
+        print(f"[VOICE_CONTRACT id={pid}] {contract}", flush=True)
     if brief:
         print(f"[BRIEF id={pid}] {brief}", flush=True)
 

@@ -300,11 +300,12 @@ function TimerStrip() {
   )
 }
 
-// The active engine, read from the live /api/llm/source (reflex | ollama |
+// The active engine, read from the live /api/llm/source (none | ollama |
 // external). Read-only status here — the actual toggle lives on the Brain page
-// + privacy shield. `external` = Loom Mode.
+// + privacy shield. `external` = Loom Mode; `none` = empty brain slot,
+// reflexes only.
 const ENGINE_LABEL: Record<Engine, string> = {
-  reflex: '◦ reflex',
+  none: '◦ reflexes only',
   ollama: '○ ollama',
   external: '● loom mode',
 }
@@ -464,7 +465,7 @@ export function ClaudeConsoleView() {
   const sourceLabel =
     source === 'external' ? 'loom' :
     source === 'ollama' ? model || 'ollama' :
-    source === 'reflex' ? 'reflex' :
+    source === 'none' ? 'no brain' :
     '…'
 
   // Typed turn — the text counterpart to the mic. POSTs /api/prompt; the user +

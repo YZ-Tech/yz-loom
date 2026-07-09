@@ -46,22 +46,26 @@ streams into the session.
 The listener probes `/api/settings` to track the current mode and gates output
 so the channel only speaks up when Claude has a role:
 
-| mode | `[<lang>]` transcript | `[PROMPT]` | `[PERSONA_OVERLAY]` | `[BRIEF]` |
-|---|---|---|---|---|
-| `external` (Claude Mode) | yes | yes | when overlay set | when brief set |
-| `local` (reflex / ollama, ± DuckDuckGo web) | — | — | — | — |
+| mode | `[<lang>]` transcript | `[PROMPT]` | `[PERSONA_OVERLAY]` | `[VOICE_CONTRACT]` | `[BRIEF]` |
+|---|---|---|---|---|---|
+| `external` (Claude Mode) | yes | yes | when overlay set | when contract set | when brief set |
+| `local` (none / ollama, ± DuckDuckGo web) | — | — | — | — | — |
 
-For each PROMPT in external mode it emits three lines, in this order:
+For each PROMPT in external mode it emits these lines, in this order:
 
 1. `[PROMPT id=<hex> persona=<name>] <user text>` — always.
 2. `[PERSONA_OVERLAY id=<hex>] <overlay>` — when the active persona has an
    overlay (identity + body / motion catalog).
-3. `[BRIEF id=<hex>] <brief>` — when `prompt_brief` is enabled (default): the
+3. `[VOICE_CONTRACT id=<hex>] <contract>` — the user-editable output rules
+   (`llm.voice_contract`, Brain page → Personality): spoken length, reply
+   language, digits/times spelled as words.
+4. `[BRIEF id=<hex>] <brief>` — when `prompt_brief` is enabled (default): the
    capabilities + world state + history + pre-fetched query results.
 
 Read in that order: the overlay tells you *who* you are and what your body can
-do; the brief tells you *what's available now* and what *just happened*; the
-PROMPT text is the user's actual ask.
+do; the contract tells you *how* to shape the spoken reply; the brief tells you
+*what's available now* and what *just happened*; the PROMPT text is the user's
+actual ask.
 
 Mode changes are announced as `[mode] <prev> → <next>` so the operator sees the
 channel go hot or cold.

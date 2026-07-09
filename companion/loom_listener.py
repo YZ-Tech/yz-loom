@@ -8,9 +8,10 @@ re-probed periodically as a self-heal):
   external (Claude Mode):
     [<lang>] <text>            — final user transcript
     [PROMPT id=<hex>] <text>   — awaiting a reply via POST /api/llm/external/reply
-                                 (+ [PERSONA_OVERLAY] / [BRIEF] context lines)
+                                 (+ [PERSONA_OVERLAY] / [VOICE_CONTRACT] / [BRIEF]
+                                 context lines)
 
-  local (reflex, or ollama with/without DuckDuckGo web):
+  local (none — reflexes only, or ollama with/without DuckDuckGo web):
     nothing — Claude has no role; only [ws-connected] / [mode] / [ws-disconnect]
     surface so the user can still see the listener is alive. (qwen runs its own
     tools, incl. web search, in-loop — nothing is delegated to Claude.)
@@ -57,7 +58,7 @@ RECONNECT_DELAY = 2.0     # backoff between connection attempts (every path)
 REPROBE_SECS = 30.0       # idle re-probe interval — self-heals a mis-moded listener
 CONNECT_PROBE_TRIES = 5   # retry the connect-time mode probe (JarvYZ may be booting)
 
-# Current operating mode — "external" (Claude is the LLM) or "local" (reflex /
+# Current operating mode — "external" (Claude is the LLM) or "local" (no brain /
 # ollama; Claude has no role). Refreshed on connect, on settings_change, and on
 # idle re-probe. Default "local" so an unreachable settings endpoint silences
 # the channel rather than spamming transcripts — but the connect-time retry +
@@ -117,17 +118,23 @@ async def _refresh_mode() -> bool:
         return False
 
 
-def _print_prompt(pid: str, text: str, persona: str, overlay: str, brief: str) -> None:
-    """Emit a PROMPT with its persona overlay (identity+body) and prompt_brief
-    (capabilities+world+history) as clearly-separated, greppable blocks — so
-    Claude reads each without an extra /api/settings probe. Shared by the live
-    `external_prompt` path and pending-recovery so both are full-fidelity."""
+def _print_prompt(
+    pid: str, text: str, persona: str, overlay: str, brief: str, contract: str = ""
+) -> None:
+    """Emit a PROMPT with its persona overlay (identity+body), voice contract
+    (user-editable output rules — spoken length, language, digits-as-words) and
+    prompt_brief (capabilities+world+history) as clearly-separated, greppable
+    blocks — so Claude reads each without an extra /api/settings probe. Shared
+    by the live `external_prompt` path and pending-recovery so both are
+    full-fidelity."""
     if pid in _emitted_prompts:
         return
     tag = f" persona={persona}" if persona else ""
     print(f"[PROMPT id={pid}{tag}] {text}", flush=True)
     if overlay:
         print(f"[PERSONA_OVERLAY id={pid}] {overlay}", flush=True)
+    if contract:
+        print(f"[VOICE_CONTRACT id={pid}] {contract}", flush=True)
     if brief:
         print(f"[BRIEF id={pid}] {brief}", flush=True)
     _emitted_prompts.add(pid)
@@ -152,6 +159,7 @@ async def _emit_pending() -> None:
                 p.get("persona") or "",
                 (p.get("persona_overlay") or "").strip(),
                 (p.get("brief") or "").strip(),
+                (p.get("voice_contract") or "").strip(),
             )
     except Exception as e:
         print(f"[ws-pending-probe-failed] {e}", flush=True)
@@ -197,6 +205,7 @@ async def _handle(raw: str) -> None:
             d.get("persona") or "",
             (d.get("persona_overlay") or "").strip(),
             (d.get("brief") or "").strip(),
+            (d.get("voice_contract") or "").strip(),
         )
 
 

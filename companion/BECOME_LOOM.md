@@ -110,11 +110,13 @@ Prompts arrive as greppable lines, identical on both paths:
 |---|---|---|
 | `[PROMPT id=<hex>] <text>` | **Your turn.** The user said this and is waiting for a spoken answer. | Reply (Step 3), using this `id`. |
 | `[PERSONA_OVERLAY id=<hex>] ...` | Who you are this turn + what your body can do (voice, gestures). | Read it; shape your reply to match. |
+| `[VOICE_CONTRACT id=<hex>] ...` | The user-editable output rules (Brain page → Personality): spoken length, reply language, digits/times as words. | Follow it — it is the channel's contract, current as of this turn. |
 | `[BRIEF id=<hex>] ...` | Live context: tools you can call, world state (lights/music/timers), recent turns, sometimes pre-fetched answers. | Read it; it's your capabilities + situational awareness. |
 
-A PROMPT arrives as those three lines together, sharing one `id`. Read them in
-that order: the overlay tells you *who you are*, the brief tells you *what's
-available and what just happened*, the PROMPT text is the actual ask.
+A PROMPT arrives as those lines together, sharing one `id`. Read them in
+that order: the overlay tells you *who you are*, the contract tells you *how
+to shape the spoken reply*, the brief tells you *what's available and what
+just happened*, the PROMPT text is the actual ask.
 
 `loom_client.py` prints a `[waited <N>s]` line above each prompt — how long
 the channel was actually quiet. Trust it over your own sense of time: a
