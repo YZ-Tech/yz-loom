@@ -20,7 +20,7 @@ export type LogKind =
   | 'system'
   | 'announce'
 
-export type Engine = 'none' | 'ollama' | 'external'
+export type Engine = 'none' | 'ollama' | 'cloud' | 'external'
 
 export interface ConsolePalette {
   /** Console body / strip backgrounds + hairline borders. */
@@ -73,6 +73,7 @@ const DARK: ConsolePalette = {
   engine: {
     none: '#4b5563',
     ollama: '#4b5563',
+    cloud: '#4b5563',
     external: '#00d9ff',
   },
 }
@@ -105,6 +106,7 @@ const LIGHT: ConsolePalette = {
   engine: {
     none: '#8a919c',
     ollama: '#8a919c',
+    cloud: '#8a919c',
     external: '#0891b2',
   },
 }

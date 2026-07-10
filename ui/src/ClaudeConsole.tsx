@@ -301,12 +301,14 @@ function TimerStrip() {
 }
 
 // The active engine, read from the live /api/llm/source (none | ollama |
-// external). Read-only status here — the actual toggle lives on the Brain page
-// + privacy shield. `external` = Loom Mode; `none` = empty brain slot,
-// reflexes only.
+// cloud | external). Read-only status here — the actual toggle lives on the
+// Brain page + privacy shield. `external` = Loom Mode; `cloud` = an OpenAI-
+// compatible API answers instead of us; `none` = empty brain slot, reflexes
+// only.
 const ENGINE_LABEL: Record<Engine, string> = {
   none: '◦ reflexes only',
   ollama: '○ ollama',
+  cloud: '◑ cloud api',
   external: '● loom mode',
 }
 

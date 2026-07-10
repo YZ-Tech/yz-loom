@@ -1,7 +1,7 @@
 {
   "id": "loom",
   "name": "Loom Console",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "enabled": true,
   "nav": null,
   "dashboards": [
@@ -14,7 +14,10 @@
     }
   ],
   "exports": [
-    { "id": "ClaudeConsole", "type": "component" }
+    {
+      "id": "ClaudeConsole",
+      "type": "component"
+    }
   ],
   "requires": {
     "network": "none",
